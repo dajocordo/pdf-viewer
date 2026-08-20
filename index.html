@@ -1,160 +1,27 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" type="image/x-icon" href="pdf.ico">
     <title>Visor de PDF</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+    <link rel="icon" type="image/x-icon" href="pdf.ico">
+    <!-- 1. SVG para navegadores modernos (vectorial y escalable) -->
+    <link rel="icon" type="image/svg+xml" href="img/pdf.svg">
 
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #3a3e53 0%, #46485f 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
+    <!-- 2. PNG de alta resolución (p. ej. 32x32) como fallback estándar -->
+    <link rel="icon" type="image/png" sizes="32x32" href="img/pdf.png">
 
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            overflow: hidden;
-        }
+    <!-- 3. PNG para la pantalla de inicio de iOS/Safari (180x180) -->
+    <link rel="apple-touch-icon" href="img/apple-touch-icon-pdf.png">
 
-        .header {
-            background: linear-gradient(135deg, #26293d 0%, #686c9b 100%);
-            color: white;
-            padding: 20px;
-            text-align: center;
-        }
+    <!-- 4. ICO únicamente para compatibilidad legacy (en la raíz del servidor) -->
+    <link rel="shortcut icon" href="img/pdf.ico">
 
-        .header h1 {
-            font-size: 24px;
-            margin-bottom: 15px;
-        }
-
-        .upload-section {
-            padding: 10px;
-        }
-
-        #fileInput {
-            display: none;
-        }
-
-        .upload-btn {
-            background: white;
-            color: #667eea;
-            padding: 12px 30px;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-
-        .upload-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
-        }
-
-        .controls {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 15px;
-            padding: 20px;
-            background: #46485f;
-            border-bottom: 1px solid #394853;
-            flex-wrap: wrap;
-        }
-
-        .controls button {
-            /* background: #667eea; */
-            color: #3a3e53;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 500;
-            transition: all 0.3s;
-        }
-
-        .controls button:hover:not(:disabled) {
-            background: #5568d3;
-            transform: translateY(-1px);
-        }
-
-        .controls button:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-        }
-
-        .page-info {
-            font-size: 14px;
-            color: #333;
-            font-weight: 500;
-        }
-
-        .zoom-controls {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-        }
-
-        #zoom {
-            width: 80px;
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 14px;
-        }
-
-        .canvas-container {
-            display: flex;
-            justify-content: center;
-            padding: 30px;
-            background: #3b3953;
-            min-height: 600px;
-            overflow: auto;
-        }
-
-        #pdfCanvas {
-            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
-            background: white;
-            display: none;
-        }
-
-        .placeholder {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            gap: 20px;
-        }
-
-        .placeholder svg {
-            width: 100px;
-            height: 100px;
-            opacity: 0.7;
-        }
-
-        .placeholder p {
-            font-size: 18px;
-            opacity: 0.9;
-        }
-    </style>
+    <link rel="stylesheet" href="css/style.css">
 </head>
+
 <body>
     <div class="container">
         <div class="header">
@@ -173,7 +40,7 @@
                 Página: <span id="pageNum">-</span> / <span id="pageCount">-</span>
             </span>
             <button id="nextPage" disabled>Siguiente →</button>
-            
+
             <div class="zoom-controls">
                 <button id="zoomOut" disabled>−</button>
                 <select id="zoom" disabled>
@@ -203,131 +70,7 @@
         </div>
     </div>
 
-    <script>
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-
-        let pdfDoc = null;
-        let pageNum = 1;
-        let pageRendering = false;
-        let pageNumPending = null;
-        let scale = 1;
-
-        const canvas = document.getElementById('pdfCanvas');
-        const ctx = canvas.getContext('2d');
-        const placeholder = document.getElementById('placeholder');
-
-        function renderPage(num) {
-            pageRendering = true;
-            
-            pdfDoc.getPage(num).then(page => {
-                const viewport = page.getViewport({ scale: scale });
-                canvas.height = viewport.height;
-                canvas.width = viewport.width;
-
-                const renderContext = {
-                    canvasContext: ctx,
-                    viewport: viewport
-                };
-
-                const renderTask = page.render(renderContext);
-
-                renderTask.promise.then(() => {
-                    pageRendering = false;
-                    if (pageNumPending !== null) {
-                        renderPage(pageNumPending);
-                        pageNumPending = null;
-                    }
-                });
-            });
-
-            document.getElementById('pageNum').textContent = num;
-        }
-
-        function queueRenderPage(num) {
-            if (pageRendering) {
-                pageNumPending = num;
-            } else {
-                renderPage(num);
-            }
-        }
-
-        function onPrevPage() {
-            if (pageNum <= 1) return;
-            pageNum--;
-            queueRenderPage(pageNum);
-            updateButtons();
-        }
-
-        function onNextPage() {
-            if (pageNum >= pdfDoc.numPages) return;
-            pageNum++;
-            queueRenderPage(pageNum);
-            updateButtons();
-        }
-
-        function updateButtons() {
-            document.getElementById('prevPage').disabled = pageNum <= 1;
-            document.getElementById('nextPage').disabled = pageNum >= pdfDoc.numPages;
-        }
-
-        function updateZoom() {
-            scale = parseFloat(document.getElementById('zoom').value);
-            queueRenderPage(pageNum);
-        }
-
-        document.getElementById('prevPage').addEventListener('click', onPrevPage);
-        document.getElementById('nextPage').addEventListener('click', onNextPage);
-        document.getElementById('zoom').addEventListener('change', updateZoom);
-        
-        document.getElementById('zoomIn').addEventListener('click', () => {
-            const zoomSelect = document.getElementById('zoom');
-            const currentIndex = zoomSelect.selectedIndex;
-            if (currentIndex < zoomSelect.options.length - 1) {
-                zoomSelect.selectedIndex = currentIndex + 1;
-                updateZoom();
-            }
-        });
-
-        document.getElementById('zoomOut').addEventListener('click', () => {
-            const zoomSelect = document.getElementById('zoom');
-            const currentIndex = zoomSelect.selectedIndex;
-            if (currentIndex > 0) {
-                zoomSelect.selectedIndex = currentIndex - 1;
-                updateZoom();
-            }
-        });
-
-        document.getElementById('fileInput').addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (file && file.type === 'application/pdf') {
-                const fileReader = new FileReader();
-                
-                fileReader.onload = function() {
-                    const typedarray = new Uint8Array(this.result);
-                    
-                    pdfjsLib.getDocument(typedarray).promise.then(pdf => {
-                        pdfDoc = pdf;
-                        document.getElementById('pageCount').textContent = pdf.numPages;
-                        
-                        pageNum = 1;
-                        renderPage(pageNum);
-                        
-                        placeholder.style.display = 'none';
-                        canvas.style.display = 'block';
-                        
-                        document.getElementById('prevPage').disabled = false;
-                        document.getElementById('nextPage').disabled = false;
-                        document.getElementById('zoom').disabled = false;
-                        document.getElementById('zoomIn').disabled = false;
-                        document.getElementById('zoomOut').disabled = false;
-                        
-                        updateButtons();
-                    });
-                };
-                
-                fileReader.readAsArrayBuffer(file);
-            }
-        });
-    </script>
+    <script src="js/index.js"></script>
 </body>
+
 </html>
